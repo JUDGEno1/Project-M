@@ -64,7 +64,6 @@ import android.util.Log;
 import android.widget.Toast;
 
 import com.android.mms.LogTag;
-import com.android.mms.MmsConfig;
 import com.android.mms.R;
 import com.android.mms.data.Contact;
 import com.android.mms.data.Conversation;
@@ -796,9 +795,6 @@ public class MessagingNotification {
             Bitmap attachmentBitmap,
             Contact contact,
             int attachmentType) {
-        if (MmsConfig.isSuppressedSprintVVM(address)) {
-            return null;
-        }
         Intent clickIntent = ComposeMessageActivity.createIntent(context, threadId);
         clickIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -810,6 +806,7 @@ public class MessagingNotification {
                 0, senderInfo.length() - 2);
         CharSequence ticker = buildTickerMessage(
                 context, address, subject, message);
+
         return new NotificationInfo(isSms,
                 clickIntent, message, subject, ticker, timeMillis,
                 senderInfoName, attachmentBitmap, contact, attachmentType, threadId);
@@ -864,6 +861,8 @@ public class MessagingNotification {
             }
             return;
         }
+
+        boolean makeBreath = MessagingPreferenceActivity.getBreathEnabled(context);
 
         // Figure out what we've got -- whether all sms's, mms's, or a mixture of both.
         final int messageCount = notificationSet.size();
@@ -950,7 +949,11 @@ public class MessagingNotification {
             taskStackBuilder.addNextIntent(mostRecentNotification.mClickIntent);
         }
         // Always have to set the small icon or the notification is ignored
-        noti.setSmallIcon(R.drawable.stat_notify_sms);
+        if (!makeBreath) {
+            noti.setSmallIcon(R.drawable.stat_notify_sms);
+          } else {
+            noti.setSmallIcon(R.drawable.stat_notify_sms_breath);
+        }
 
         NotificationManager nm = (NotificationManager)
                 context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -966,27 +969,31 @@ public class MessagingNotification {
         int defaults = 0;
 
         if (isNew) {
+            String vibrateWhen;
+            if (sp.contains(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_WHEN)) {
+                vibrateWhen =
+                    sp.getString(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_WHEN, null);
+            } else if (sp.contains(MessagingPreferenceActivity.NOTIFICATION_VIBRATE)) {
+                vibrateWhen =
+                        sp.getBoolean(MessagingPreferenceActivity.NOTIFICATION_VIBRATE, false) ?
+                    context.getString(R.string.prefDefault_vibrate_true) :
+                    context.getString(R.string.prefDefault_vibrate_false);
+            } else {
+                vibrateWhen = context.getString(R.string.prefDefault_vibrateWhen);
+            }
+
             TelephonyManager mTM = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
             boolean callStateIdle = mTM.getCallState() == TelephonyManager.CALL_STATE_IDLE;
             boolean vibrateOnCall = sp.getBoolean(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_CALL, true);
 
-            boolean vibrate = false;
-            if (sp.contains(MessagingPreferenceActivity.NOTIFICATION_VIBRATE)) {
-                // The most recent change to the vibrate preference is to store a boolean
-                // value in NOTIFICATION_VIBRATE. If prefs contain that preference, use that
-                // first.
-                vibrate = sp.getBoolean(MessagingPreferenceActivity.NOTIFICATION_VIBRATE,
-                        false);
-            } else if (sp.contains(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_WHEN)) {
-                // This is to support the pre-JellyBean MR1.1 version of vibrate preferences
-                // when vibrate was a tri-state setting. As soon as the user opens the Messaging
-                // app's settings, it will migrate this setting from NOTIFICATION_VIBRATE_WHEN
-                // to the boolean value stored in NOTIFICATION_VIBRATE.
-                String vibrateWhen =
-                        sp.getString(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_WHEN, null);
-                vibrate = "always".equals(vibrateWhen);
-            }
-            if (vibrate && (vibrateOnCall || (!vibrateOnCall && callStateIdle))) {
+            boolean vibrateAlways = vibrateWhen.equals("always");
+            boolean vibrateSilent = vibrateWhen.equals("silent");
+            AudioManager audioManager =
+                (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
+            boolean nowSilent =
+                audioManager.getRingerMode() == AudioManager.RINGER_MODE_VIBRATE;
+
+            if ((vibrateAlways || vibrateSilent && nowSilent) && (vibrateOnCall || (!vibrateOnCall && callStateIdle))) {
                 /* WAS: notificationdefaults |= Notification.DEFAULT_VIBRATE;*/
                 String mVibratePattern = "custom".equals(sp.getString(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_PATTERN, null))
                         ? sp.getString(MessagingPreferenceActivity.NOTIFICATION_VIBRATE_PATTERN_CUSTOM, "0,1200")
@@ -1006,8 +1013,8 @@ public class MessagingNotification {
             }
         }
 
-        // Set light defaults
         defaults |= Notification.DEFAULT_LIGHTS;
+
         noti.setDefaults(defaults);
 
         // set up delete intent
@@ -1055,7 +1062,7 @@ public class MessagingNotification {
                 mrIntent.putExtra(QmMarkRead.SMS_THREAD_ID, mostRecentNotification.mThreadId);
                 PendingIntent mrPendingIntent = PendingIntent.getBroadcast(context, 0, mrIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT);
-                noti.addAction(R.drawable.ic_menu_done_holo_dark, markReadText, mrPendingIntent);
+                noti.addAction(R.drawable.ic_mark_read_holo_dark, markReadText, mrPendingIntent);
 
                 // Add the Call action
                 CharSequence callText = context.getText(R.string.menu_call);
@@ -1163,26 +1170,26 @@ public class MessagingNotification {
                 }
             }
 
-            // Trigger the QuickMessage pop-up activity if enabled
-            // But don't show the QuickMessage if the user is in a call or the phone is ringing
-            if (qmPopupEnabled && qmIntent != null) {
-                TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-                if (tm.getCallState() == TelephonyManager.CALL_STATE_IDLE && !ConversationList.mIsRunning && !ComposeMessageActivity.mIsRunning) {
-                    // Since a QM Popup may wake and unlock we need to prevent the light from being dismissed
-                    notification.flags |= Notification.FLAG_FORCE_LED_SCREEN_OFF;
+        // Post the notification
+        nm.notify(NOTIFICATION_ID, notification);
 
-                    // Show the popup
-                    context.startActivity(qmIntent);
-                }
+        // Trigger the QuickMessage pop-up activity if enabled
+        // But don't show the QuickMessage if the user is in a call or the phone is ringing
+        if (qmPopupEnabled && qmIntent != null) {
+            TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm.getCallState() == TelephonyManager.CALL_STATE_IDLE && !ConversationList.mIsRunning && !ComposeMessageActivity.mIsRunning) {
+		// Since a QM Popup may wake and unlock we need to prevent the light from being dismissed
+		notification.flags |= Notification.FLAG_FORCE_LED_SCREEN_OFF;
+
+		// Show the popup
+		context.startActivity(qmIntent);
+	}
             }
         } else {
             // Show a standard notification in privacy mode
             noti.setContentText(privateModeContentText);
             notification = noti.build();
         }
-
-        // Post the notification
-        nm.notify(NOTIFICATION_ID, notification);
     }
 
     protected static CharSequence buildTickerMessage(

@@ -524,11 +524,20 @@ public class QuickMessagePopup extends Activity implements
             final EditText editText = (EditText) mEmojiView.findViewById(R.id.emoji_edit_text);
             final Button button = (Button) mEmojiView.findViewById(R.id.emoji_button);
 
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+            final boolean useSoftBankEmojiEncoding = prefs.getBoolean(MessagingPreferenceActivity.SOFTBANK_EMOJIS, false);
+
             gridView.setOnItemClickListener(new OnItemClickListener() {
                 public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-                    // We use the new unified Unicode 6.1 emoji code points
-                    CharSequence emoji = EmojiParser.getInstance().addEmojiSpans(EmojiParser.mEmojiTexts[position]);
+                    // We use the new unified Unicode 6.1 emoji code points by default
+                    CharSequence emoji;
+                    if (useSoftBankEmojiEncoding) {
+                        emoji = EmojiParser.getInstance().addEmojiSpans(EmojiParser.mSoftbankEmojiTexts[position]);
+                    } else {
+                        emoji = EmojiParser.getInstance().addEmojiSpans(EmojiParser.mEmojiTexts[position]);
+                    }
                     editText.append(emoji);
+
                 }
             });
 
@@ -1194,6 +1203,11 @@ public class QuickMessagePopup extends Activity implements
          * @param qm - qm we are replying to (for sender details)
          */
         private void sendMessageAndMoveOn(String message, QuickMessage qm) {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+            String mSignature = prefs.getString(MessagingPreferenceActivity.MSG_SIGNATURE, "");
+            if (!mSignature.isEmpty()) {
+                message = message + "\n" + mSignature;
+            }
             sendQuickMessage(message, qm);
             // Close the current QM and move on
             int numMessages = mMessageList.size();

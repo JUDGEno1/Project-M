@@ -159,6 +159,9 @@ PRODUCT_PACKAGES += \
     CMFileManager \
     LockClock
 
+PRODUCT_PACKAGES += \
+    CellBroadcastReceiver
+
 # Extra tools in CM
 PRODUCT_PACKAGES += \
     openvpn \
@@ -207,13 +210,13 @@ endif
 ifdef CM_BUILDTYPE
     ifdef CM_EXTRAVERSION
         # Force build type to EXPERIMENTAL
-        CM_BUILDTYPE := STABLE
+        CM_BUILDTYPE := EXPERIMENTAL
         # Add leading dash to CM_EXTRAVERSION
         CM_EXTRAVERSION := -$(CM_EXTRAVERSION)
     endif
 else
     # If CM_BUILDTYPE is not defined, set to UNOFFICIAL
-    CM_BUILDTYPE := NIGHTLY
+    CM_BUILDTYPE := UNOFFICIAL
     CM_EXTRAVERSION :=
 endif
 

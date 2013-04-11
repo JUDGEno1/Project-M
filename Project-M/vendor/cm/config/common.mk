@@ -207,13 +207,13 @@ endif
 ifdef CM_BUILDTYPE
     ifdef CM_EXTRAVERSION
         # Force build type to EXPERIMENTAL
-        CM_BUILDTYPE := EXPERIMENTAL
+        CM_BUILDTYPE := STABLE
         # Add leading dash to CM_EXTRAVERSION
         CM_EXTRAVERSION := -$(CM_EXTRAVERSION)
     endif
 else
     # If CM_BUILDTYPE is not defined, set to UNOFFICIAL
-    CM_BUILDTYPE := UNOFFICIAL
+    CM_BUILDTYPE := NIGHTLY
     CM_EXTRAVERSION :=
 endif
 

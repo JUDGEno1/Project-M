@@ -5209,11 +5209,11 @@
     <string name="pie_control_enabled">Floating controls when Expanded desktop is enabled</string>
     <string name="pie_control_disabled">Floating controls disabled</string>
     <string name="pie_control_size">Navigation key size</string>
-    <string name="pie_control_trigger_positions">Trigger positions</string>
-    <string name="pie_control_trigger_left">Left screen border</string>
-    <string name="pie_control_trigger_bottom">Bottom screen border</string>
-    <string name="pie_control_trigger_right">Right screen border</string>
-    <string name="pie_control_trigger_top">Top screen border</string>
+    <string name="pie_control_trigger_positions">Trigger position</string>
+    <string name="pie_control_trigger_left">Left</string>
+    <string name="pie_control_trigger_bottom">Bottom</string>
+    <string name="pie_control_trigger_right">Right</string>
+    <string name="pie_control_trigger_top">Top</string>
     <string name="pie_control_trigger_top_summary">Only navigation will be displayed at top</string>
 
     <!-- **** CYANOGENMOD ADDITIONS END **** -->
